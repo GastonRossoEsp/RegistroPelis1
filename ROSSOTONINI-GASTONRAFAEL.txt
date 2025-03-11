@@ -1,0 +1,254 @@
+using Parcial2Programacion2.Logica;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace Parcial2Programacion2
+{
+    public partial class Form1 : Form
+    {
+
+        Pelicula _pelicula;
+        bool carga = false;
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void checkBoxDuracion_CheckedChanged(object sender, EventArgs e)
+        {
+            cbBuscarPorEstreno.Enabled = false;
+        }
+
+        private void checkBoxEstreno_CheckedChanged(object sender, EventArgs e)
+        {
+            txtBuscarPorDuracion.Enabled = false;
+        }
+
+        private void btnBuscar_Click(object sender, EventArgs e)
+        {
+            
+        }
+
+        private void btnGuardar_Click(object sender, EventArgs e)
+        {
+            string titulo=txtTitulo.Text;
+            string genero=txtGenero.Text;
+
+            if (string.IsNullOrEmpty(titulo))
+            {
+                MessageBox.Show("Es necesario el titulo de la pelicula");
+                return;
+            }
+            if (string.IsNullOrEmpty(genero))
+            {
+                MessageBox.Show("Es necesario el genero de la pelicula");
+                return;
+            }
+            if (!int.TryParse(txtDuracion.Text, out int duracion) || duracion <= 0)
+            {
+                MessageBox.Show("La duracion de la pelicula es invalida");
+                return;
+            }
+            if (_pelicula==null) _pelicula = new Pelicula(0,"","",0,false);
+            _pelicula.Titulo = titulo;
+            _pelicula.Genero = genero;
+            _pelicula.Duracion = duracion;
+
+            try
+            {
+                BaseDatos.InsertarPelicula(_pelicula);
+                MessageBox.Show("Pelicula guardada con exito");
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+
+        }
+
+        private void btnMostrarTodo_Click(object sender, EventArgs e)
+        {
+            CargarPeliculas();
+        }
+
+        private void CargarPeliculas()
+        {
+            try
+            {
+                List<Pelicula> peliculas = BaseDatos.ObtenerPeliculas();
+
+                dgvMostrarDatos.Rows.Clear();
+
+                foreach (Pelicula pelicula in peliculas)
+                {
+                    dgvMostrarDatos.Rows.Add(pelicula.IdPelicula,pelicula.Titulo,pelicula.Genero,pelicula.Duracion);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+        }
+
+        private void btnEliminar_Click(object sender, EventArgs e)
+        {
+            if (dgvMostrarDatos.SelectedRows.Count == 0)
+            {
+                MessageBox.Show("Debe seleccionar una pelicula");
+            }
+            else
+            {
+                DialogResult resultado = MessageBox.Show("Desea eliminar la pelicula?", "Eliminar", MessageBoxButtons.YesNo);
+                if (resultado == DialogResult.Yes)
+                {
+                    Pelicula pelicula = new Pelicula();
+                    pelicula.IdPelicula = int.Parse(dgvMostrarDatos.CurrentRow.Cells["IdPelicula"].Value.ToString());
+                    pelicula.Titulo = dgvMostrarDatos.CurrentRow.Cells["Titulo"].Value.ToString();
+                    pelicula.Genero = dgvMostrarDatos.CurrentRow.Cells["Genero"].Value.ToString();
+                    pelicula.Duracion = int.Parse(dgvMostrarDatos.CurrentRow.Cells["Duracion"].Value.ToString());
+                    try
+                    {
+                        BaseDatos.EliminarPelicula(pelicula);
+                        MessageBox.Show("La pelicula ha sido eliminada correctamente");
+                        CargarPeliculas();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("No se pudo eliminar la pelicula" + ex.Message);
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+
+
+//CLASE BASEDATOS
+
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Data.Sql;
+using System.Data.SqlClient;
+using System.Windows.Forms;
+
+namespace Parcial2Programacion2.Logica
+{
+    public abstract class BaseDatos
+    {   
+        private static string connectionString = "Data Source=DESKTOP-AH48DTG;Initial Catalog=ProgramacionIIParcialII;Integrated Security=True";
+        
+        public static List<Pelicula> ObtenerPeliculas()
+        {
+            List<Pelicula> peliculas = new List<Pelicula>();
+            string query = $"SELECT * FROM Peliculas";
+            SqlConnection connection = new SqlConnection(connectionString);
+            SqlCommand command = new SqlCommand(query, connection);
+
+            try
+            {
+                connection.Open();
+                SqlDataReader reader = command.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    int idPelicula = int.Parse(reader[0].ToString());
+                    string titulo = reader[1].ToString();
+                    string genero = reader[2].ToString();
+                    int duracion = int.Parse(reader[3].ToString());
+                    bool esEstreno = (bool)reader[4];
+
+                    Pelicula pelicula = new Pelicula(idPelicula,titulo,genero,duracion,esEstreno);
+                    peliculas.Add(pelicula);
+                }
+                connection.Close();
+
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message);
+            }
+
+            return peliculas;
+        }
+
+        public static void InsertarPelicula(Pelicula pelicula)
+        {
+            string query = $"INSERT INTO Peliculas (Titulo, Genero, Duracion) VAUES ('{pelicula.Titulo}', '{pelicula.Genero}', {pelicula.Duracion})";
+            SqlConnection connection = new SqlConnection(connectionString);
+            SqlCommand command = new SqlCommand(query, connection);
+
+            try
+            {
+                connection.Open();
+                command.ExecuteNonQuery();
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error al guardar la pelicula" + ex.Message);
+            }
+        }
+
+        public static void EliminarPelicula (Pelicula pelicula)
+        {
+            string query = $"DELETE Peliculas WHERE IdPelicula = {pelicula.IdPelicula}";
+            SqlConnection connection = new SqlConnection(connectionString);
+            SqlCommand command = new SqlCommand (query, connection);
+
+            try 
+            {
+                connection.Open();
+                command.ExecuteNonQuery();
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error al eliminar la pelicula" + ex.Message);
+            }
+        }
+    }
+}
+
+
+
+//CLASE PELICULAS
+
+
+
+namespace Parcial2Programacion2.Logica
+{
+    public class Pelicula
+    {
+        public int IdPelicula { get; set; }
+        public string Titulo { get; set; }
+        public string Genero { get; set; }
+        public int Duracion { get; set; }
+        public bool EsEstreno { get; set; }
+
+        public Pelicula (int idPelicula, string titulo, string genero, int duracion, bool esEstreno)
+        {
+            IdPelicula = idPelicula;
+            Titulo = titulo;
+            Genero = genero;
+            Duracion = duracion;
+            EsEstreno = esEstreno;
+        }
+
+        public Pelicula() { }
+    }
+}
